@@ -9,6 +9,9 @@
 #include <linux/rmap.h>
 #include <linux/memory.h>
 #include <linux/time.h>
+#include <linux/preempt.h>
+#include <linux/hardirq.h>
+
 
 # define op_t	unsigned long int
 # define OPSIZ	(sizeof(op_t))
@@ -86,17 +89,25 @@ void * glibc_memset (void *dstpp, int c, size_t len)
 int init_module(void)
 {
 	int i;	
+	unsigned long flags;
 	char *p = vmalloc(4096);
 	
 	memset(p, '0', 4096);
+	
+        preempt_disable();
+        raw_local_irq_save(flags);
 
+	__asm__ volatile ("CPUID\n\t"::: "%rax", "%rbx", "%rcx", "%rdx");
 	__asm__ volatile (".byte 0x0f, 0x31" : "=A" (start));	
 	
 	for(i = 0; i < 8192; i++)
                 glibc_memset(p, '0', 4096);
 	
+	__asm__ volatile ("CPUID\n\t"::: "%rax", "%rbx", "%rcx", "%rdx");
 	__asm__ volatile (".byte 0x0f, 0x31" : "=A" (end));	
-	
+
+        preempt_enable();
+        raw_local_irq_restore(flags);
 
 	vfree(p);
 	printk("%c\n", *(p + 1024));
