@@ -146,9 +146,9 @@ sarea *get_stack_areas(size_t pid, void *top_addr, void *bottom_addr){
 
 
 /*
-Print the content of a physical page
-frame_num: frame number of the physical page
-return: error if -1; successful if > 0
+*Print the content of a physical page
+*frame_num: frame number of the physical page
+*return: error if -1; successful if > 0
 */
 int read_memory_page(unsigned long frame_num) {
         char buffer[4096];
@@ -182,6 +182,13 @@ int read_memory_page(unsigned long frame_num) {
         return fd;
 }
 
+/*
+*Encrypt the stack
+*pid: pid of the process
+*top_addr: virtual address of the stack top
+*bottom_addr: virtual address of the stack bottom
+*return: 0 if successful, otherwise not
+*/
 int encrypt_stack(size_t pid, void *top_addr, void *bottom_addr){
 	sarea *s, *tmp;
 	int i, j;
