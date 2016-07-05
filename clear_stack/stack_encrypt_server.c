@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include "hash.h"
 
 #define SOCK_PATH "echo_socket"
 
@@ -18,6 +19,12 @@ typedef struct stack_area{
 	unsigned long offset;
 	unsigned long len;
 }sarea;
+
+typedef struct ht_value{
+	char op;
+	unsigned long rsp;
+	unsigned long rbp;
+}htvalue;
 
 safechar(char c)
 {
@@ -146,9 +153,9 @@ sarea *get_stack_areas(size_t pid, void *top_addr, void *bottom_addr){
 
 
 /*
-*Print the content of a physical page
-*frame_num: frame number of the physical page
-*return: error if -1; successful if > 0
+Print the content of a physical page
+frame_num: frame number of the physical page
+return: error if -1; successful if > 0
 */
 int read_memory_page(unsigned long frame_num) {
         char buffer[4096];
@@ -181,6 +188,7 @@ int read_memory_page(unsigned long frame_num) {
 
         return fd;
 }
+
 
 /*
 *Encrypt the stack
@@ -216,7 +224,7 @@ int encrypt_stack(size_t pid, void *top_addr, void *bottom_addr){
 			read(fd, buffer, 4096);
 
 			for(j = tmp->offset; j < tmp->offset + tmp->len; j++){
-				//Encryption algorithm
+				printf("encrypt_stack\n");
 			}
 
 			write(fd, buffer, 4096);
@@ -237,6 +245,9 @@ int main(void)
 	char op; //e - encrypt, d - decrypt
 	size_t pid;
 	unsigned long rsp, rbp;
+	struct hashtable *ht;
+	
+	ht = htCreate(10);
 
 	if ((s = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
 		perror("socket");
@@ -284,7 +295,7 @@ int main(void)
 		func_name = malloc(len);
 		strcpy(func_name, p);
 		*(func_name + len - 1) = '\0';
-		
+	
 		p = strtok(NULL, " "); //get the pid of the process
 		pid = atol(p);
 		
@@ -297,11 +308,21 @@ int main(void)
 		
 		if('e' == *p){
 			//encrypt the stack
+			htvalue *htv = malloc(sizeof(htvalue));
+			htv->op = op;
+			htv->rsp = rsp;
+			htv->rbp = rbp;
+			htSet(ht, func_name, htv, sizeof(htv));
+			
 			encrypt_stack(pid, (char *)rsp, (char *)rbp);
 		}else if('d' == *p){
 			//decrypt the stack
+			if(htGet(ht, func_name) == NULL){
+				printf("%s has not been encrypted\n", func_name);
+				break;
+			}
+			printf("decrypt stack\n");
 		}
-
 
 		if (send(s2, str, n, 0) < 0) {
 			perror("send");
