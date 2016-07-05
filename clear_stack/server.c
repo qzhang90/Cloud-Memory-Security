@@ -209,6 +209,7 @@ int encrypt_stack(size_t pid, void *top_addr, void *bottom_addr){
 			read(fd, buffer, 4096);
 
 			for(j = tmp->offset; j < tmp->offset + tmp->len; j++){
+				//Encryption algorithm
 			}
 
 			write(fd, buffer, 4096);
