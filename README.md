@@ -1,3 +1,3 @@
 # MemClear
 
-More description to be added
+More descriptions to be added
