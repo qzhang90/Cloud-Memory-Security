@@ -3,15 +3,29 @@
 #include <linux/kprobes.h>
 #include <linux/aio.h>
 #include <linux/string.h>
+#include <linux/highmem.h>
+#include <asm/kmap_types.h>
+
+pid_t pid = -1;
+struct page *p = NULL;
 
 static long jvfs_write(struct file *file, const char __user *buf, size_t count, loff_t *pos){
         char *file_name = file->f_path.dentry->d_iname;
 
 	
-        //if((strcmp(file_name, "syslog") != 0) && (strcmp(file_name, "kern.log") != 0))
-        if(!strcmp(file_name, "text.txt"))  
-	      printk(KERN_INFO "jprobe: jvfs_write, %s, file->f_op->write = %pF\n", file_name, file->f_op->write);
-
+        if(!strcmp(file_name, "text.txt")){  
+	      	printk(KERN_INFO "jprobe: jvfs_write, %s, file->f_op->write = %pF\n", file_name, file->f_op->write);
+		
+		if(p){	
+			char *kaddr = kmap_atomic(p);
+			int i;
+			printk(KERN_INFO "jvfs_write, previous page = %p, kaddr = %p, pid = %d, pfn = %ld\n", p, kaddr, pid, page_to_pfn(p));
+			for(i = 0; i < 512; i++){
+				printk("%02x ", (*(kaddr + i))&0xFF);
+			}
+			kunmap_atomic(kaddr);
+		}
+	}
 	jprobe_return();
 	return 0;
 } 
@@ -39,8 +53,10 @@ static long jgeneric_file_buffered_write(struct kiocb *iocb, const struct iovec 
 	char *file_name = iocb->ki_filp->f_path.dentry->d_iname;
 
 	//if(!strcmp(file_name, "syslog") && !strcmp(file_name, "kern.log"))
-        if(!strcmp(file_name, "text.txt"))
-		printk(KERN_INFO "jprobe: generic_file_buffered_write,%s, len = %d, pid = %d\n", file_name, iov->iov_len, current->pid);
+        if(!strcmp(file_name, "text.txt")){
+		printk(KERN_INFO "jprobe: generic_file_buffered_write,%s, len = %d, pid = %d\n", 
+			file_name, (int)iov->iov_len, (int)current->pid);
+	}
 	jprobe_return();
 	return 0;
 }
@@ -52,38 +68,99 @@ static ssize_t jgeneric_perform_write(struct file *file,
 	char *file_name = file->f_path.dentry->d_iname;
 	
 	
-        if(!strcmp(file_name, "text.txt"))  
-		printk(KERN_INFO "jprobe: generic_perform_write, %s, write_begin = %pF, pid = %d\n", file_name, file->f_mapping->a_ops->write_begin, current->pid);
-	
+        if(!strcmp(file_name, "text.txt")){  
+		pid = current->pid;		
+		printk(KERN_INFO "jprobe: generic_perform_write, %s, write_begin = %pF, pid = %d\n", 
+			file_name, file->f_mapping->a_ops->write_begin, current->pid);
+	}
 	jprobe_return();
 	return 0;
 }
 
-static struct jprobe my_jprobe = {
+size_t jiov_iter_copy_from_user_atomic(struct page *page,
+		struct iov_iter *i, unsigned long offset, size_t bytes){
+	if(current->pid == pid){
+		printk(KERN_INFO "jiov_iter_copy_from_user_atomic, bytes = %zu, pid = %d\n", bytes, current->pid);
+		if(bytes == 512){
+			p = page;
+			printk(KERN_INFO "p = %p, pfn = %ld\n", p, page_to_pfn(p));
+		}
+	}
+	jprobe_return();
+	return 0;
+}
+
+void jmark_page_accessed(struct page *page){
+	jprobe_return();
+}
+
+static struct jprobe jvfs_write_probe = {
+	.entry			= jvfs_write,
+	.kp = {
+		.symbol_name	= "vfs_write",
+	},
+};
+static struct jprobe jgeneric_perform_write_probe = {
 	.entry			= jgeneric_perform_write,
 	.kp = {
 		.symbol_name	= "generic_perform_write",
+	},
+};
+static struct jprobe jiov_iter_copy_from_user_atomic_probe = {
+	.entry			= jiov_iter_copy_from_user_atomic,
+	.kp = {
+		.symbol_name	= "iov_iter_copy_from_user_atomic",
+	},
+};
+static struct jprobe jmark_page_accessed_probe = {
+	.entry			= jmark_page_accessed,
+	.kp = {
+		.symbol_name	= "mark_page_accessed",
 	},
 };
 
 static int __init jprobe_init(void)
 {
 	int ret;
-
-	ret = register_jprobe(&my_jprobe);
+	ret = register_jprobe(&jvfs_write_probe);
 	if (ret < 0) {
-		printk(KERN_INFO "register_jprobe failed, returned %d\n", ret);
+		printk(KERN_INFO "register_jvfs_write_probe failed, returned %d\n", ret);
 		return -1;
 	}
-	printk(KERN_INFO "Planted jprobe at %p, handler addr %p\n",
-	       my_jprobe.kp.addr, my_jprobe.entry);
+	ret = register_jprobe(&jgeneric_perform_write_probe);
+	if (ret < 0) {
+		printk(KERN_INFO "register_jgeneric_perform_write_probe failed, returned %d\n", ret);
+		return -1;
+	}
+	ret = register_jprobe(&jiov_iter_copy_from_user_atomic_probe);
+	if (ret < 0) {
+		printk(KERN_INFO "register_jiov_iter_copy_from_user_atomic_probe failed, returned %d\n", ret);
+		return -1;
+	}
+	ret = register_jprobe(&jmark_page_accessed_probe);
+	if (ret < 0) {
+		printk(KERN_INFO "register_jmark_page_accessed_probe failed, returned %d\n", ret);
+		return -1;
+	}
+	printk(KERN_INFO "Planted handlers successfully\n");
+	/*
+	printk(KERN_INFO "Planted jgeneric_perform_write_probe at %p, handler addr %p\n",
+	       jgeneric_perform_write_probe.kp.addr, jgeneric_perform_write_probe.entry);
+	printk(KERN_INFO "Planted jiov_iter_copy_from_user_atomic_probe at %p, handler addr %p\n",
+	       jiov_iter_copy_from_user_atomic_probe.kp.addr, jiov_iter_copy_from_user_atomic_probe.entry);
+	*/
 	return 0;
 }
 
 static void __exit jprobe_exit(void)
 {
-	unregister_jprobe(&my_jprobe);
-	printk(KERN_INFO "jprobe at %p unregistered\n", my_jprobe.kp.addr);
+	unregister_jprobe(&jgeneric_perform_write_probe);
+	unregister_jprobe(&jiov_iter_copy_from_user_atomic_probe);
+	unregister_jprobe(&jmark_page_accessed_probe);
+	unregister_jprobe(&jvfs_write_probe);
+	printk(KERN_INFO "handlers unregistered\n");
+	//printk(KERN_INFO "jprobe at %p unregistered\n", jgeneric_perform_write_probe.kp.addr);
+	//printk(KERN_INFO "jprobe at %p unregistered\n", jiov_iter_copy_from_user_atomic_probe.kp.addr);
 }
 
 module_init(jprobe_init)
