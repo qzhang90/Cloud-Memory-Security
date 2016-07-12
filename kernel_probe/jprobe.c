@@ -5,6 +5,22 @@
 #include <linux/string.h>
 #include <linux/highmem.h>
 #include <asm/kmap_types.h>
+#include <linux/user.h>
+#include <linux/regset.h>
+#include <linux/slab.h>
+#include <asm/user_64.h>
+//This data structure is copied from arch/x86/kernel/ptrace.c
+enum x86_regset {
+	REGSET_GENERAL,
+	REGSET_FP,
+	REGSET_XFP,
+	REGSET_IOPERM64 = REGSET_XFP,
+	REGSET_XSTATE,
+	REGSET_TLS,
+	REGSET_IOPERM32,
+};
+
+
 
 pid_t pid = -1;
 struct page *p = NULL;
@@ -94,6 +110,29 @@ void jmark_page_accessed(struct page *page){
 	jprobe_return();
 }
 
+long inline jsys_encrypt_stack(void){
+	
+	struct user_regset_view *view = task_user_regset_view(current);
+	const struct user_regset *regset = &view->regsets[REGSET_GENERAL];
+	unsigned long regs[27];
+	int ret, i;
+	unsigned long bp, sp;
+	register unsigned long bp1 asm("rbp");
+	
+	regset->get(current, regset, 0, 27*8, regs, NULL);
+	bp = regs[4];
+	sp = regs[19];
+
+	printk("bp = %p, sp = %p, bp1 = %p, ret addr = %p\n",(unsigned long *)bp, (unsigned long *)sp, (unsigned long *)bp1, *((unsigned long *)sp));
+	for(i = 0; i < 20; i++){
+		printk("%p\n", *((unsigned long *)bp1 - i));
+	}
+	printk("\n\n\n\n\n");
+	printk("regs = %p, ret = %d, ip = %x\n", regs, ret, regs[16]);
+	jprobe_return();
+	return 0;
+}
+
 static struct jprobe jvfs_write_probe = {
 	.entry			= jvfs_write,
 	.kp = {
@@ -118,10 +157,17 @@ static struct jprobe jmark_page_accessed_probe = {
 		.symbol_name	= "mark_page_accessed",
 	},
 };
+static struct jprobe jsys_encrypt_stack_probe = {
+	.entry			= jsys_encrypt_stack,
+	.kp = {
+		.symbol_name	= "sys_encrypt_stack",
+	},
+};
 
 static int __init jprobe_init(void)
 {
 	int ret;
+	/*
 	ret = register_jprobe(&jvfs_write_probe);
 	if (ret < 0) {
 		printk(KERN_INFO "register_jvfs_write_probe failed, returned %d\n", ret);
@@ -142,6 +188,12 @@ static int __init jprobe_init(void)
 		printk(KERN_INFO "register_jmark_page_accessed_probe failed, returned %d\n", ret);
 		return -1;
 	}
+	*/
+	ret = register_jprobe(&jsys_encrypt_stack_probe);
+	if (ret < 0) {
+		printk(KERN_INFO "register_jsys_encrypt_stack_probe failed, returned %d\n", ret);
+		return -1;
+	}
 	printk(KERN_INFO "Planted handlers successfully\n");
 	/*
 	printk(KERN_INFO "Planted jgeneric_perform_write_probe at %p, handler addr %p\n",
@@ -154,10 +206,13 @@ static int __init jprobe_init(void)
 
 static void __exit jprobe_exit(void)
 {
+	/*
 	unregister_jprobe(&jgeneric_perform_write_probe);
 	unregister_jprobe(&jiov_iter_copy_from_user_atomic_probe);
 	unregister_jprobe(&jmark_page_accessed_probe);
 	unregister_jprobe(&jvfs_write_probe);
+	*/
+	unregister_jprobe(&jsys_encrypt_stack_probe);
 	printk(KERN_INFO "handlers unregistered\n");
 	//printk(KERN_INFO "jprobe at %p unregistered\n", jgeneric_perform_write_probe.kp.addr);
 	//printk(KERN_INFO "jprobe at %p unregistered\n", jiov_iter_copy_from_user_atomic_probe.kp.addr);
