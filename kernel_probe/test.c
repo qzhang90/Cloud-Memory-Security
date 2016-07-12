@@ -28,7 +28,7 @@ char bar(){
 	return tmp + 1;
 }
 
-int main(void)
+int f1(void)
 {
 	
 	char buff[512], c, c1;
@@ -66,4 +66,8 @@ int main(void)
                 : "0" (316) : __syscall_clobber );
 	
 	return i;
+}
+
+int main(void){
+	f1();
 }
