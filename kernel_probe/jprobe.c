@@ -124,8 +124,10 @@ long inline jsys_encrypt_stack(void){
 	sp = regs[19];
 
 	printk("bp = %p, sp = %p, bp1 = %p, ret addr = %p\n",(unsigned long *)bp, (unsigned long *)sp, (unsigned long *)bp1, *((unsigned long *)sp));
+	
+	/*The addresses kernel stack frames we are interested are higher than bp1 */
 	for(i = 0; i < 20; i++){
-		printk("%p\n", *((unsigned long *)bp1 - i));
+		printk("%p\n", *((unsigned long *)bp1 + i));
 	}
 	printk("\n\n\n\n\n");
 	printk("regs = %p, ret = %d, ip = %x\n", regs, ret, regs[16]);
