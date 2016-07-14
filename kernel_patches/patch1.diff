@@ -1,0 +1,105 @@
+diff -rcNP linux-3.14.4/arch/x86/syscalls/syscall_64.tbl linux-3.14.4-memClear/arch/x86/syscalls/syscall_64.tbl
+*** linux-3.14.4/arch/x86/syscalls/syscall_64.tbl	2014-05-13 07:33:14.000000000 -0400
+--- linux-3.14.4-memClear/arch/x86/syscalls/syscall_64.tbl	2016-07-12 11:35:44.860477999 -0400
+***************
+*** 322,327 ****
+--- 322,328 ----
+  313	common	finit_module		sys_finit_module
+  314	common	sched_setattr		sys_sched_setattr
+  315	common	sched_getattr		sys_sched_getattr
++ 316     common  encrypt_stack           sys_encrypt_stack
+  
+  #
+  # x32-specific system call numbers start at 512 to avoid cache impact
+diff -rcNP linux-3.14.4/include/linux/syscalls.h linux-3.14.4-memClear/include/linux/syscalls.h
+*** linux-3.14.4/include/linux/syscalls.h	2014-05-13 07:33:14.000000000 -0400
+--- linux-3.14.4-memClear/include/linux/syscalls.h	2016-07-12 11:36:25.324477999 -0400
+***************
+*** 855,858 ****
+--- 855,859 ----
+  asmlinkage long sys_kcmp(pid_t pid1, pid_t pid2, int type,
+  			 unsigned long idx1, unsigned long idx2);
+  asmlinkage long sys_finit_module(int fd, const char __user *uargs, int flags);
++ asmlinkage long sys_encrypt_stack(void);
+  #endif
+diff -rcNP linux-3.14.4/Makefile linux-3.14.4-memClear/Makefile
+*** linux-3.14.4/Makefile	2014-05-13 07:33:14.000000000 -0400
+--- linux-3.14.4-memClear/Makefile	2016-07-12 11:37:56.648477999 -0400
+***************
+*** 779,785 ****
+  
+  
+  ifeq ($(KBUILD_EXTMOD),)
+! core-y		+= kernel/ mm/ fs/ ipc/ security/ crypto/ block/
+  
+  vmlinux-dirs	:= $(patsubst %/,%,$(filter %/, $(init-y) $(init-m) \
+  		     $(core-y) $(core-m) $(drivers-y) $(drivers-m) \
+--- 779,785 ----
+  
+  
+  ifeq ($(KBUILD_EXTMOD),)
+! core-y		+= kernel/ mm/ fs/ ipc/ security/ crypto/ block/ stackops/
+  
+  vmlinux-dirs	:= $(patsubst %/,%,$(filter %/, $(init-y) $(init-m) \
+  		     $(core-y) $(core-m) $(drivers-y) $(drivers-m) \
+diff -rcNP linux-3.14.4/security/tomoyo/builtin-policy.h linux-3.14.4-memClear/security/tomoyo/builtin-policy.h
+*** linux-3.14.4/security/tomoyo/builtin-policy.h	1969-12-31 19:00:00.000000000 -0500
+--- linux-3.14.4-memClear/security/tomoyo/builtin-policy.h	2016-07-12 11:47:48.641838000 -0400
+***************
+*** 0 ****
+--- 1,12 ----
++ static char tomoyo_builtin_profile[] __initdata =
++ "";
++ static char tomoyo_builtin_exception_policy[] __initdata =
++ "initialize_domain /sbin/modprobe from any\n"
++ "initialize_domain /sbin/hotplug from any\n"
++ "";
++ static char tomoyo_builtin_domain_policy[] __initdata =
++ "";
++ static char tomoyo_builtin_manager[] __initdata =
++ "";
++ static char tomoyo_builtin_stat[] __initdata =
++ "";
+diff -rcNP linux-3.14.4/security/tomoyo/policy/exception_policy.conf linux-3.14.4-memClear/security/tomoyo/policy/exception_policy.conf
+*** linux-3.14.4/security/tomoyo/policy/exception_policy.conf	1969-12-31 19:00:00.000000000 -0500
+--- linux-3.14.4-memClear/security/tomoyo/policy/exception_policy.conf	2016-07-12 11:46:54.877838000 -0400
+***************
+*** 0 ****
+--- 1,2 ----
++ initialize_domain /sbin/modprobe from any
++ initialize_domain /sbin/hotplug from any
+diff -rcNP linux-3.14.4/stackops/Makefile linux-3.14.4-memClear/stackops/Makefile
+*** linux-3.14.4/stackops/Makefile	1969-12-31 19:00:00.000000000 -0500
+--- linux-3.14.4-memClear/stackops/Makefile	2016-07-12 11:33:58.376477999 -0400
+***************
+*** 0 ****
+--- 1 ----
++ obj-y := ops.o
+diff -rcNP linux-3.14.4/stackops/ops.c linux-3.14.4-memClear/stackops/ops.c
+*** linux-3.14.4/stackops/ops.c	1969-12-31 19:00:00.000000000 -0500
+--- linux-3.14.4-memClear/stackops/ops.c	2016-07-12 12:55:22.506999000 -0400
+***************
+*** 0 ****
+--- 1,22 ----
++ #include <linux/slab.h> 
++ #include <linux/stat.h>
++ #include <linux/fcntl.h>
++ #include <linux/file.h>
++ #include <linux/uio.h>
++ #include <linux/aio.h>
++ #include <linux/fsnotify.h>
++ #include <linux/security.h>
++ #include <linux/export.h>
++ #include <linux/syscalls.h>
++ #include <linux/pagemap.h>
++ #include <linux/splice.h>
++ #include <linux/compat.h>
++ 
++ #include <asm/uaccess.h>
++ #include <asm/unistd.h>
++ 
++ asmlinkage long sys_encrypt_stack(){
++ 	return 0;
++ }
++ EXPORT_SYMBOL(sys_encrypt_stack);
++ 
