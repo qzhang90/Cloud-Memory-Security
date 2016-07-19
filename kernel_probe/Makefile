@@ -1,4 +1,5 @@
-obj-m += jprobe.o
+memClear-objs = jprobe.o parse_elf.o file_ops.o mapper.o
+obj-m += memClear.o
 
 all:
 	#make CFLAGS+="-O3" -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
@@ -6,3 +7,4 @@ all:
 clean:
 	#make CFLAGS+="-O3" -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
+
