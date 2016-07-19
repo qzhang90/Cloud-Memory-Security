@@ -9,6 +9,11 @@
 #include <linux/regset.h>
 #include <linux/slab.h>
 #include <asm/user_64.h>
+#include <asm/compat.h>
+#include <linux/percpu.h>
+
+#include "parse_elf.h"
+#include "mapper.h"
 //This data structure is copied from arch/x86/kernel/ptrace.c
 enum x86_regset {
 	REGSET_GENERAL,
@@ -20,10 +25,22 @@ enum x86_regset {
 	REGSET_IOPERM32,
 };
 
+#define ENCRYPT 0
+#define DECRYPT 1
 
+typedef struct call_stack_item{
+	int op, key;
+	unsigned long user_rsp, user_rbp;
+	char *func_name;
+}cs_item_t;
+static int call_stack_top = 0;
+
+cs_item_t* call_stack[64];
 
 pid_t pid = -1;
 struct page *p = NULL;
+item_t *mapper;
+static int init = 0;
 
 static long jvfs_write(struct file *file, const char __user *buf, size_t count, loff_t *pos){
         char *file_name = file->f_path.dentry->d_iname;
@@ -110,27 +127,79 @@ void jmark_page_accessed(struct page *page){
 	jprobe_return();
 }
 
-long inline jsys_encrypt_stack(void){
+long jsys_encrypt_stack(void){
 	
-	struct user_regset_view *view = task_user_regset_view(current);
-	const struct user_regset *regset = &view->regsets[REGSET_GENERAL];
-	unsigned long regs[27];
-	int ret, i;
-	unsigned long bp, sp;
-	register unsigned long bp1 asm("rbp");
-	
-	regset->get(current, regset, 0, 27*8, regs, NULL);
-	bp = regs[4];
-	sp = regs[19];
+	char *func_name;
+	register unsigned long kernel_rbp asm("rbp");
+	struct thread_struct *ts = &current->thread;
+	unsigned long user_ip = *((unsigned long *)kernel_rbp + 12);	
+	unsigned long user_rbp = *(unsigned long *)kernel_rbp;
+	unsigned long user_rsp = ts->usersp + 0x7E8;
+	unsigned long i;
+	int len;
 
-	printk("bp = %p, sp = %p, bp1 = %p, ret addr = %p\n",(unsigned long *)bp, (unsigned long *)sp, (unsigned long *)bp1, *((unsigned long *)sp));
-	
-	/*The addresses kernel stack frames we are interested are higher than bp1 */
-	for(i = 0; i < 20; i++){
-		printk("%p\n", *((unsigned long *)bp1 + i));
+	if(init == 0){
+		mapper = init_mapper(8);
+		parse("/home/test/fopen", &mapper);
+		
+		init = 1;
 	}
-	printk("\n\n\n\n\n");
-	printk("regs = %p, ret = %d, ip = %x\n", regs, ret, regs[16]);
+
+	func_name = get_func_name(mapper, user_ip); 
+	if(func_name == NULL){
+		printk("%s: NULL func_name error\n", __func__);
+		return 0;
+	}else{
+		printk("user_rsp = %lx, user_ip = %ld, func_name = %s\n\n", user_rsp, user_ip, func_name);
+	}
+	
+	cs_item_t *csit = kmalloc(sizeof(cs_item_t), GFP_KERNEL);
+	csit->op = ENCRYPT;
+	
+	len = strlen(func_name);
+	csit->func_name = kmalloc(strlen(func_name) + 1, GFP_KERNEL);
+	strncpy(csit->func_name, func_name, len);
+	(*(csit->func_name + len)) = '\0';
+
+	csit->user_rbp = user_rbp;
+	csit->user_rsp = user_rsp;
+
+	call_stack[call_stack_top] = csit;	
+	call_stack_top++;
+
+	//encrypt(user_rsp, user_rbp);
+	for(i = user_rsp; i <= user_rbp; i++){
+		(*(unsigned long *)i)++;
+	}
+
+	printk("encrypt from %lx to %lx\n", user_rsp, user_rbp);
+	jprobe_return();
+	return 0;
+}
+
+long jsys_decrypt_stack(void){
+	char *func_name;
+	register unsigned long kernel_rbp asm("rbp");
+	unsigned long user_ip = *((unsigned long *)kernel_rbp + 12);	
+	unsigned long user_rsp, user_rbp;
+	unsigned long i;
+	cs_item_t *csit;
+	
+	func_name = get_func_name(mapper, user_ip); 
+	call_stack_top--;
+	csit = call_stack[call_stack_top];
+	user_rsp = csit->user_rsp;
+	user_rbp = csit->user_rbp;
+
+	kfree(csit->func_name);
+	kfree(csit);
+	
+	//decrypt(user_rsp, user_rbp);
+	for(i = user_rsp; i <= user_rbp; i++){
+		(*(unsigned long *)i)--;
+	}
+	
+	printk("decrypt from %lx to %lx\n", user_rsp, user_rbp);
 	jprobe_return();
 	return 0;
 }
@@ -165,6 +234,12 @@ static struct jprobe jsys_encrypt_stack_probe = {
 		.symbol_name	= "sys_encrypt_stack",
 	},
 };
+static struct jprobe jsys_decrypt_stack_probe = {
+	.entry			= jsys_decrypt_stack,
+	.kp = {
+		.symbol_name	= "sys_decrypt_stack",
+	},
+};
 
 static int __init jprobe_init(void)
 {
@@ -196,6 +271,12 @@ static int __init jprobe_init(void)
 		printk(KERN_INFO "register_jsys_encrypt_stack_probe failed, returned %d\n", ret);
 		return -1;
 	}
+
+	ret = register_jprobe(&jsys_decrypt_stack_probe);
+	if (ret < 0) {
+		printk(KERN_INFO "register_jsys_decrypt_stack_probe failed, returned %d\n", ret);
+		return -1;
+	}
 	printk(KERN_INFO "Planted handlers successfully\n");
 	/*
 	printk(KERN_INFO "Planted jgeneric_perform_write_probe at %p, handler addr %p\n",
@@ -215,6 +296,7 @@ static void __exit jprobe_exit(void)
 	unregister_jprobe(&jvfs_write_probe);
 	*/
 	unregister_jprobe(&jsys_encrypt_stack_probe);
+	unregister_jprobe(&jsys_decrypt_stack_probe);
 	printk(KERN_INFO "handlers unregistered\n");
 	//printk(KERN_INFO "jprobe at %p unregistered\n", jgeneric_perform_write_probe.kp.addr);
 	//printk(KERN_INFO "jprobe at %p unregistered\n", jiov_iter_copy_from_user_atomic_probe.kp.addr);
