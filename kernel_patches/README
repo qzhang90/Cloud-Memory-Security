@@ -1,1 +1,4 @@
 patch#N#.diff includes patch#N-1#.diff
+
+grub refers to /etc/default/grub
+update the grub file, then execute update-grub
