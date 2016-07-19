@@ -127,16 +127,19 @@ void jmark_page_accessed(struct page *page){
 	jprobe_return();
 }
 
-long jsys_encrypt_stack(void){
+long jsys_encrypt_stack(int arg){
 	
 	char *func_name;
 	register unsigned long kernel_rbp asm("rbp");
 	struct thread_struct *ts = &current->thread;
 	unsigned long user_ip = *((unsigned long *)kernel_rbp + 12);	
-	unsigned long user_rbp = *(unsigned long *)kernel_rbp;
-	unsigned long user_rsp = ts->usersp + 0x7E8;
+	unsigned long user_rbp = *(unsigned long *)kernel_rbp, prev_user_rbp;
+	unsigned long user_rsp = ts->usersp + 0x7E8, prev_user_rsp;
 	unsigned long i;
 	int len;
+	cs_item_t *csit, *prev_csit;
+
+	printk("******************** arg = %d\n", arg);
 
 	if(init == 0){
 		mapper = init_mapper(8);
@@ -152,8 +155,27 @@ long jsys_encrypt_stack(void){
 	}else{
 		printk("user_rsp = %lx, user_ip = %ld, func_name = %s\n\n", user_rsp, user_ip, func_name);
 	}
+
+	/*check*/
+	if(user_rbp < user_rsp){
+		printk(KERN_ERR "Illegal stack encrypt from function %s, rbp should not be smaller than rsp\n", func_name);
+		return -1;
+	}
+
+	/*check*/
+	if(call_stack_top > 0){
+		prev_csit = call_stack[call_stack_top - 1];
+		prev_user_rbp = prev_csit->user_rbp;
+		prev_user_rsp = prev_csit->user_rsp;
 	
-	cs_item_t *csit = kmalloc(sizeof(cs_item_t), GFP_KERNEL);
+		if(user_rbp >= prev_user_rsp){
+			printk(KERN_ERR "Illegal stack encrypt from function %s: trying the encrypt caller's stack\n", func_name);
+			return -1;
+		}
+	}
+	
+	/*start encrypt*/
+	csit = kmalloc(sizeof(cs_item_t), GFP_KERNEL);
 	csit->op = ENCRYPT;
 	
 	len = strlen(func_name);
@@ -183,9 +205,23 @@ long jsys_decrypt_stack(void){
 	unsigned long user_ip = *((unsigned long *)kernel_rbp + 12);	
 	unsigned long user_rsp, user_rbp;
 	unsigned long i;
-	cs_item_t *csit;
+	cs_item_t *csit, *prev_csit;
 	
 	func_name = get_func_name(mapper, user_ip); 
+	/*check*/
+	if(call_stack_top == 0){
+		printk("Illegal stack decrypt from function %s: no encrypt is found\n", func_name);
+		return -1;
+	}else{
+		prev_csit = call_stack[call_stack_top - 1];
+		/*check*/
+		if(strcmp(prev_csit->func_name, func_name)){
+			printk("Illegal stack decrypt from function %s: functin name does not match\n", func_name);
+		}
+	}
+
+	
+	/*start decrypt*/
 	call_stack_top--;
 	csit = call_stack[call_stack_top];
 	user_rsp = csit->user_rsp;
