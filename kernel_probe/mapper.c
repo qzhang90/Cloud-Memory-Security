@@ -33,6 +33,8 @@ int insert_mapper(item_t **mapper, char *func_name, unsigned long ip, unsigned l
 			return -1;
 		}	
 
+		cap = tmp_cap;
+
 		for(i = 0; i < cur; i++){
 			t1 = *mapper + i;
 			t2 = tmp_mapper + i;
@@ -49,7 +51,6 @@ int insert_mapper(item_t **mapper, char *func_name, unsigned long ip, unsigned l
 
 		kfree(*mapper);
 		*mapper = tmp_mapper;
-		cap = tmp_cap;
 	}
 
 	//Insert the new item
@@ -62,8 +63,8 @@ int insert_mapper(item_t **mapper, char *func_name, unsigned long ip, unsigned l
 
 	tmp_mapper->ip = ip;
 	tmp_mapper->size = size;
-	cur++;
 
+	cur++;
 	return 0;
 }
 
