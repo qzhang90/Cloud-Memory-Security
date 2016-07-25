@@ -14,6 +14,7 @@
 
 #include "parse_elf.h"
 #include "mapper.h"
+#include "stack_buf.h"
 #include <linux/memclear_para.h>
 
 //This data structure is copied from arch/x86/kernel/ptrace.c
@@ -42,6 +43,7 @@ cs_item_t* call_stack[64]; /*maximum depth of function calls*/
 pid_t pid = -1;
 struct page *p = NULL;
 item_t *mapper;
+sbuf_t *stack_buf;
 static int init = 0;
 
 
@@ -151,18 +153,17 @@ void jmark_page_accessed(struct page *page){
 
 long jsys_encrypt_stack(void *arg){
 	
+	unsigned long i, skip;
+	unsigned long prev_rsp;
+	int len;
+	cs_item_t *csit, *prev_csit;
 	char *func_name;
 	register unsigned long kernel_rbp asm("rbp");
 	struct thread_struct *ts = &current->thread;
 	unsigned long user_ip = *((unsigned long *)kernel_rbp + 12);	
 	unsigned long user_rbp = *(unsigned long *)kernel_rbp, prev_user_rbp;
 	unsigned long user_rsp = ts->usersp + 0x7E8, prev_user_rsp;
-	unsigned long i, skip;
-	int len;
-	cs_item_t *csit, *prev_csit;
 	para_list_t *para_list = (para_list_t *)arg;
-
-	printk("in kernel, user_rsp = %p\n", user_rsp);
 
 	/*
 	for(i = 0; i < para_list->size; i++){
@@ -172,6 +173,7 @@ long jsys_encrypt_stack(void *arg){
 	*/
 	if(init == 0){
 		mapper = init_mapper(8);
+		stack_buf = init_stack_buf(8);
 		parse("/home/test/fopen", &mapper);
 		
 		init = 1;
@@ -220,18 +222,33 @@ long jsys_encrypt_stack(void *arg){
 
 	//encrypt(user_rsp, user_rbp);
 	//for(i = user_rsp; i <= user_rbp; i++){
+
+	prev_rsp = user_rsp;
+
 	for(i = user_rsp; i <= user_rbp;){
 		skip = contains(i, para_list);
 
-		
 		if(skip != 0){	
+			if(i > prev_rsp){
+				copy_stack_buf(&stack_buf, (char *)prev_rsp, i - prev_rsp);
+				memset((char *)prev_rsp, '0', i - prev_rsp);
+			}
 			i += skip;
+			prev_rsp = i;
+		}else if(i == user_rbp){
+			if(i > prev_rsp){
+				copy_stack_buf(&stack_buf, (char *)prev_rsp, i - prev_rsp);
+				memset((char *)prev_rsp, '0', i - prev_rsp);
+			}
+			//(*(char *)i)++;
+			i++;
 		}else{
-			(*(char *)i)++;
+			//(*(char *)i)++;
 			i++;
 		}
 	}
 
+	print_stack_buf(stack_buf);
 	printk("encrypt from %lx to %lx\n", user_rsp, user_rbp);
 	jprobe_return();
 	return 0;
@@ -242,9 +259,7 @@ long jsys_decrypt_stack(void *arg){
 	register unsigned long kernel_rbp asm("rbp");
 	unsigned long user_ip = *((unsigned long *)kernel_rbp + 12);	
 	unsigned long user_rsp, user_rbp;
-	unsigned long i, skip;
 	cs_item_t *csit, *prev_csit;
-	para_list_t *para_list;
 	
 	func_name = get_func_name(mapper, user_ip); 
 	/*check*/
@@ -269,10 +284,10 @@ long jsys_decrypt_stack(void *arg){
 	kfree(csit->func_name);
 	kfree(csit);
 
-	printk("decrypt, user_rsp = %p, user_rbp = %p\n", user_rsp, user_rbp);
 	
 	//decrypt(user_rsp, user_rbp);
-	for(i = user_rsp; i <= user_rbp;){
+	//for(i = user_rsp; i <= user_rbp;){
+		/*
 		skip = contains(i, para_list);
 
                 if(skip != 0){
@@ -281,8 +296,11 @@ long jsys_decrypt_stack(void *arg){
                         (*(char *)i)--;
                         i++;
                 }
+		*/
+		restore_stack_buf(stack_buf);
+	//	i++;
 	
-	}
+	//}
 	printk("decrypt from %lx to %lx\n", user_rsp, user_rbp);
 	jprobe_return();
 	return 0;
