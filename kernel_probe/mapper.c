@@ -1,8 +1,8 @@
 #include <linux/slab.h>
 #include "mapper.h"
 
-unsigned long cur = 0;
-unsigned long cap = 0;
+//unsigned long cur = 0;
+//unsigned long cap = 0;
 
 item_t *init_mapper(size_t size){
 
@@ -11,8 +11,8 @@ item_t *init_mapper(size_t size){
 	if(mapper == NULL){
 		printk(KERN_ERR "mapper initialization fails\n");
 	}else{
-		cur = 0;
-		cap = size;
+		mapper->cur = 0;
+		mapper->cap = size;
 	}
 	return mapper;
 }
@@ -22,7 +22,8 @@ int insert_mapper(item_t **mapper, char *func_name, unsigned long ip, unsigned l
 	item_t *tmp_mapper, *t1, *t2;
 	int i, len;
 
-	
+	unsigned long cur = (*mapper)->cur;
+	unsigned long cap = (*mapper)->cap;
 	if(cur == cap){
 		/*mapper is full, realloc before insert*/
 		tmp_cap = 2*cap;
@@ -33,7 +34,8 @@ int insert_mapper(item_t **mapper, char *func_name, unsigned long ip, unsigned l
 			return -1;
 		}	
 
-		cap = tmp_cap;
+		tmp_mapper->cap = tmp_cap;
+		tmp_mapper->cur = cur;
 
 		for(i = 0; i < cur; i++){
 			t1 = *mapper + i;
@@ -64,7 +66,9 @@ int insert_mapper(item_t **mapper, char *func_name, unsigned long ip, unsigned l
 	tmp_mapper->ip = ip;
 	tmp_mapper->size = size;
 
-	cur++;
+	(*mapper)->cur++;
+
+	printk("insert cur = %ld\n", (*mapper)->cur);
 	return 0;
 }
 
@@ -72,20 +76,20 @@ int destroy_mapper(item_t *mapper){
 	int i;
 	item_t *tmp;
 
-	for(i = 0; i < cap; i++){
+	for(i = 0; i < mapper->cap; i++){
 		tmp = mapper + i;
 		kfree(tmp->func_name);
 	}
 
 	kfree(mapper);
-	return 1;
+	return 0;
 }
 
 char *get_func_name(item_t *mapper, unsigned long ip){
 	int i;
 	item_t *tmp;
 
-	for(i = 0; i < cur; i++){
+	for(i = 0; i < mapper->cur; i++){
 		tmp = mapper + i;
 		
 		printk("get_func_name: %-30s, %-30ld, %-30ld\n", tmp->func_name, tmp->ip, tmp->size);
