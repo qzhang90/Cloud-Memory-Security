@@ -3,7 +3,7 @@
 
 typedef struct stack_buf{
 	char *buf;
-	unsigned char *start;	
+	char *start;	
 	unsigned long len;
 
 	unsigned long cur;
