@@ -6,7 +6,7 @@
 
 extern void fd_install(unsigned int fd, struct file *file);
 extern int get_unused_fd_flags(unsigned flags);
-extern unsigned long cur;
+//extern unsigned long cur;
 
 Elf_obj *elf_open(char *filename){
 	int i, fd;
@@ -225,7 +225,7 @@ void parse(char *file_name, item_t **mapper){
 	}while(sym);
 
 	unsigned long i;
-	for(i = 0; i < cur; i++){
+	for(i = 0; i < (*mapper)->cur; i++){
 		item_t *tmp = *mapper + i;
 		printk("%-30s, %-30ld, %-30ld\n", tmp->func_name, tmp->ip, tmp->size);
 	}
