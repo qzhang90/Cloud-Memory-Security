@@ -40,6 +40,7 @@ typedef struct call_stack_item{
 static int call_stack_top = 0;
 cs_item_t* call_stack[64]; /*maximum depth of function calls*/
 
+
 pid_t pid = -1;
 struct page *p = NULL;
 item_t *mapper;
@@ -50,7 +51,7 @@ static int init = 0;
 /*
 *Return how may bytes from @addr should not be encrypted, othersie 0
 */
-unsigned long contains(unsigned long addr, para_list_t* plt){
+unsigned long contains(unsigned long addr, para_list_t *plt){
 	int i;
 	para_t *tmp;
 
@@ -65,6 +66,61 @@ unsigned long contains(unsigned long addr, para_list_t* plt){
 	return 0;
 }
 
+char *find_in_stack_buf(char *addr, unsigned long len, sbuf_t *sbuf){
+	int i;
+	sbuf_t *tmp;
+
+	printk("find_in_stack_buf, sbuf->cur = %ld\n", sbuf->cur);	
+	for(i = 0; i < sbuf->cur; i++){
+		tmp = sbuf + i;
+		printk("find_in_stack_buf, i = %ld, tmp->start = %p, tmp->len = %x, addr = %p\n", i, tmp->start, tmp->len, addr);	
+		if((addr >= tmp->start) && (addr + len <= tmp->start + tmp->len)){
+			return tmp->buf + (addr - tmp->start);/*find it, return the 'copy from' address*/
+		}
+	}
+	return NULL; /*not found*/
+}
+
+int restore_pointers(para_list_t *plt, sbuf_t *sbuf){
+
+	int i;
+	para_t *tmp;
+	unsigned long size;
+	char *from;
+	unsigned long p;
+
+	printk("in restore_pointers\n");
+	for(i = 0; i < plt->size; i++){
+		tmp = plt->plist + i;
+		
+		if(tmp->pointer == 0){
+			continue;		
+		}else{
+			p = (char *)tmp->addr;
+			size = tmp->size;
+
+			tmp->pointer--;
+			p = *(unsigned long *)p;
+			
+			printk("restore_pointers, p = %p, size = %d, tmp->pointer = %d\n", p, size, tmp->pointer);
+
+			while(tmp->pointer != 0){
+				from = find_in_stack_buf((char *)p, sizeof(void *), sbuf);
+				printk("haha, from = %p\n", from);
+				if(from != NULL){
+					memcpy((char *)p, (char *)from, sizeof(void *));
+				}
+				tmp->pointer--;
+				p = *(unsigned long *)p;
+
+			}
+			printk("restore_pointers, hi I am here\n");	
+			//assert(tmp->pointers == 0)
+			from = find_in_stack_buf((char *)p, size, sbuf);
+			memcpy((char *)p, (char *)from, size);
+		}
+	}
+}
 
 static long jvfs_write(struct file *file, const char __user *buf, size_t count, loff_t *pos){
         char *file_name = file->f_path.dentry->d_iname;
@@ -228,7 +284,9 @@ long jsys_encrypt_stack(void *arg){
 	for(i = user_rsp; i <= user_rbp;){
 		skip = contains(i, para_list);
 
-		if(skip != 0){	
+		if(skip != 0){
+			
+	
 			if(i > prev_rsp){
 				copy_stack_buf(&stack_buf, (char *)prev_rsp, i - prev_rsp);
 				memset((char *)prev_rsp, '0', i - prev_rsp);
@@ -247,6 +305,8 @@ long jsys_encrypt_stack(void *arg){
 			i++;
 		}
 	}
+	
+	restore_pointers(para_list, stack_buf);
 
 	print_stack_buf(stack_buf);
 	printk("encrypt from %lx to %lx\n", user_rsp, user_rbp);
