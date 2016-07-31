@@ -57,9 +57,13 @@ unsigned long contains(unsigned long addr, para_list_t *plt){
 
 	for(i = 0; i < plt->size; i++){
 		tmp = plt->plist + i;
-		//printk("addr = %p, tmp->addr = %p\n", addr, tmp->addr);
+		
 		if(addr == tmp->addr){
-			return tmp->size;
+			if(tmp->pointer != 0){
+				return 0;
+			}else{
+				return tmp->size;
+			}
 		}
 	}
 	
@@ -70,10 +74,8 @@ char *find_in_stack_buf(char *addr, unsigned long len, sbuf_t *sbuf){
 	int i;
 	sbuf_t *tmp;
 
-	//printk("find_in_stack_buf, sbuf->cur = %ld\n", sbuf->cur);	
 	for(i = 0; i < sbuf->cur; i++){
 		tmp = sbuf + i;
-		//printk("find_in_stack_buf, i = %ld, tmp->start = %p, tmp->len = %x, addr = %p\n", i, tmp->start, tmp->len, addr);	
 		if((addr >= tmp->start) && (addr + len <= tmp->start + tmp->len)){
 			return tmp->buf + (addr - tmp->start);/*find it, return the 'copy from' address*/
 		}
@@ -87,37 +89,43 @@ int restore_pointers(para_list_t *plt, sbuf_t *sbuf){
 	para_t *tmp;
 	unsigned long size;
 	char *from;
-	unsigned long p;
+	unsigned long org_value, addr_in_stack, addr_in_buf;
 
-	//printk("in restore_pointers\n");
 	for(i = 0; i < plt->size; i++){
 		tmp = plt->plist + i;
 		
 		if(tmp->pointer == 0){
 			continue;		
 		}else{
-			p = (char *)tmp->addr;
+			addr_in_stack = (char *)tmp->addr;
 			size = tmp->size;
 
 			tmp->pointer--;
-			p = *(unsigned long *)p;
-			
-			//printk("restore_pointers, p = %p, size = %d, tmp->pointer = %d\n", p, size, tmp->pointer);
+
+			addr_in_buf = find_in_stack_buf((char *)addr_in_stack, sizeof(void *), sbuf);
+			org_value = *(unsigned long *)addr_in_buf;
+			*(unsigned long *)addr_in_stack = org_value;
+
+
+			addr_in_stack = *(unsigned long *)addr_in_stack;
 
 			while(tmp->pointer != 0){
-				from = find_in_stack_buf((char *)p, sizeof(void *), sbuf);
-				//printk("haha, from = %p\n", from);
-				if(from != NULL){
-					memcpy((char *)p, (char *)from, sizeof(void *));
-				}
+				addr_in_buf = find_in_stack_buf((char *)addr_in_stack, sizeof(void *), sbuf);
+				
+				org_value = *(unsigned long *)addr_in_buf;
+				*(unsigned long *)addr_in_stack = org_value;
+				
 				tmp->pointer--;
-				p = *(unsigned long *)p;
-
+				addr_in_stack = *(unsigned long *)addr_in_stack;
 			}
-			//printk("restore_pointers, hi I am here\n");	
-			//assert(tmp->pointers == 0)
-			from = find_in_stack_buf((char *)p, size, sbuf);
-			memcpy((char *)p, (char *)from, size);
+
+			from = find_in_stack_buf((char *)addr_in_stack, size, sbuf);
+			printk("restore_pointers, hi I am here, p = %p, from = %p\n", p, from);	
+			if(from){
+				memcpy((char *)addr_in_stack, (char *)from, size);
+			}else{
+				printk(KERN_ERR "Cannot find %p in stack bufs\n", p);
+			}
 		}
 	}
 	return 0;
@@ -287,7 +295,6 @@ long jsys_encrypt_stack(void *arg){
 
 		if(skip != 0){
 			
-	
 			if(i > prev_rsp){
 				copy_stack_buf(&stack_buf, (char *)prev_rsp, i - prev_rsp);
 				memset((char *)prev_rsp, '0', i - prev_rsp);
@@ -306,8 +313,10 @@ long jsys_encrypt_stack(void *arg){
 			i++;
 		}
 	}
-	
+
+	printk("before restore_pointers\n");	
 	restore_pointers(para_list, stack_buf);
+	printk("after restore_pointers\n");	
 
 	print_stack_buf(stack_buf);
 	printk("encrypt from %lx to %lx\n", user_rsp, user_rbp);

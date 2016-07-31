@@ -1,6 +1,11 @@
 #ifndef __STACK_BUF_H__
 #define __STACK_BUF_H__
 
+typedef struct hole{
+	char * start;
+	unsigned long
+}hole_t;
+
 typedef struct stack_buf{
 	char *buf;
 	char *start;	

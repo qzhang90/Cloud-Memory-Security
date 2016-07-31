@@ -7,7 +7,6 @@ int encrypt_stack(unsigned long user_rsp, unsigned long user_rbp, para_list_t *p
 	para_t *tmp;
 	char *buf;/*store parameter bytes*/
 
-	key = 0x1111111111111111; /*should be a random number*/		
 	/*copy parameters into buf*/
 	total_para_size = 0;
 	for(i = 0; i < plt->size; i++){
@@ -52,8 +51,6 @@ int decrypt_stack(unsigned long user_rsp, unsigned long user_rbp, para_list_t *p
 	unsigned long i, j, delta, offset, total_para_size;
 	para_t *tmp;
 	char *buf;
-
-	key = 0x1111111111111111; /*should be a random number*/	
 
 	/*copy parameters into buf*/
         total_para_size = 0;
