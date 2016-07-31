@@ -70,10 +70,10 @@ char *find_in_stack_buf(char *addr, unsigned long len, sbuf_t *sbuf){
 	int i;
 	sbuf_t *tmp;
 
-	printk("find_in_stack_buf, sbuf->cur = %ld\n", sbuf->cur);	
+	//printk("find_in_stack_buf, sbuf->cur = %ld\n", sbuf->cur);	
 	for(i = 0; i < sbuf->cur; i++){
 		tmp = sbuf + i;
-		printk("find_in_stack_buf, i = %ld, tmp->start = %p, tmp->len = %x, addr = %p\n", i, tmp->start, tmp->len, addr);	
+		//printk("find_in_stack_buf, i = %ld, tmp->start = %p, tmp->len = %x, addr = %p\n", i, tmp->start, tmp->len, addr);	
 		if((addr >= tmp->start) && (addr + len <= tmp->start + tmp->len)){
 			return tmp->buf + (addr - tmp->start);/*find it, return the 'copy from' address*/
 		}
@@ -89,7 +89,7 @@ int restore_pointers(para_list_t *plt, sbuf_t *sbuf){
 	char *from;
 	unsigned long p;
 
-	printk("in restore_pointers\n");
+	//printk("in restore_pointers\n");
 	for(i = 0; i < plt->size; i++){
 		tmp = plt->plist + i;
 		
@@ -102,11 +102,11 @@ int restore_pointers(para_list_t *plt, sbuf_t *sbuf){
 			tmp->pointer--;
 			p = *(unsigned long *)p;
 			
-			printk("restore_pointers, p = %p, size = %d, tmp->pointer = %d\n", p, size, tmp->pointer);
+			//printk("restore_pointers, p = %p, size = %d, tmp->pointer = %d\n", p, size, tmp->pointer);
 
 			while(tmp->pointer != 0){
 				from = find_in_stack_buf((char *)p, sizeof(void *), sbuf);
-				printk("haha, from = %p\n", from);
+				//printk("haha, from = %p\n", from);
 				if(from != NULL){
 					memcpy((char *)p, (char *)from, sizeof(void *));
 				}
@@ -114,12 +114,13 @@ int restore_pointers(para_list_t *plt, sbuf_t *sbuf){
 				p = *(unsigned long *)p;
 
 			}
-			printk("restore_pointers, hi I am here\n");	
+			//printk("restore_pointers, hi I am here\n");	
 			//assert(tmp->pointers == 0)
 			from = find_in_stack_buf((char *)p, size, sbuf);
 			memcpy((char *)p, (char *)from, size);
 		}
 	}
+	return 0;
 }
 
 static long jvfs_write(struct file *file, const char __user *buf, size_t count, loff_t *pos){
