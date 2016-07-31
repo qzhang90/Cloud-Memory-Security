@@ -1,4 +1,4 @@
-memClear-objs = jprobe.o parse_elf.o file_ops.o mapper.o stack_encrypt.o
+memClear-objs = jprobe.o parse_elf.o file_ops.o mapper.o stack_buf.o stack_encrypt.o
 obj-m += memClear.o
 
 all:

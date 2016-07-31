@@ -223,11 +223,12 @@ void parse(char *file_name, item_t **mapper){
 		}
 		sym = elf_nextsym(elf_obj, sym);
 	}while(sym);
-
+	/*
 	unsigned long i;
 	for(i = 0; i < (*mapper)->cur; i++){
 		item_t *tmp = *mapper + i;
 		printk("%-30s, %-30ld, %-30ld\n", tmp->func_name, tmp->ip, tmp->size);
 	}
+	*/
 	elf_close(elf_obj);
 }
