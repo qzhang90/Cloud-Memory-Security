@@ -1,5 +1,5 @@
 #include <linux/types.h>
-#include "encrypt.h"
+#include "stack_encrypt.h"
 int encrypt(unsigned long user_rsp, unsigned long user_rbp, sbuf_t *sbuf, para_list_t *plt){	
 	uint64_t key = 0x1111111111111111; /*should be a random number*/		
 	uint64_t *p;
