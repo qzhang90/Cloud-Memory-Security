@@ -97,12 +97,12 @@ int restore_pointers(para_list_t *plt, sbuf_t *sbuf){
 		if(tmp->pointer == 0){
 			continue;		
 		}else{
-			addr_in_stack = (char *)tmp->addr;
+			addr_in_stack = tmp->addr;
 			size = tmp->size;
 
 			tmp->pointer--;
 
-			addr_in_buf = find_in_stack_buf((char *)addr_in_stack, sizeof(void *), sbuf);
+			addr_in_buf = (unsigned long)find_in_stack_buf((char *)addr_in_stack, sizeof(void *), sbuf);
 			org_value = *(unsigned long *)addr_in_buf;
 			*(unsigned long *)addr_in_stack = org_value;
 
@@ -114,7 +114,7 @@ int restore_pointers(para_list_t *plt, sbuf_t *sbuf){
 			addr_in_stack = *(unsigned long *)addr_in_stack;
 
 			while(tmp->pointer != 0){
-				addr_in_buf = find_in_stack_buf((char *)addr_in_stack, sizeof(void *), sbuf);
+				addr_in_buf = (unsigned long)find_in_stack_buf((char *)addr_in_stack, sizeof(void *), sbuf);
 				
 				org_value = *(unsigned long *)addr_in_buf;
 				*(unsigned long *)addr_in_stack = org_value;
@@ -128,7 +128,7 @@ int restore_pointers(para_list_t *plt, sbuf_t *sbuf){
 				addr_in_stack = *(unsigned long *)addr_in_stack;
 			}
 
-			addr_in_buf = find_in_stack_buf((char *)addr_in_stack, size, sbuf);
+			addr_in_buf = (unsigned long)find_in_stack_buf((char *)addr_in_stack, size, sbuf);
 			
 			if(addr_in_buf){
 				memcpy((char *)addr_in_stack, (char *)addr_in_buf, size);
