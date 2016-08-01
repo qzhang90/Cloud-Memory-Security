@@ -57,7 +57,6 @@ int copy_stack_buf(sbuf_t **sbuf, char *buf, unsigned long len){
 	//Insert the new item
 	tmp_sbuf = *sbuf + cur;
 	tmp_sbuf->buf = kmalloc(len, GFP_KERNEL);
-	printk("allocated sbuf->buf = %p\n", tmp_sbuf->buf);
 	memcpy(tmp_sbuf->buf, buf, len);
 
 	tmp_sbuf->start = buf;
@@ -66,7 +65,6 @@ int copy_stack_buf(sbuf_t **sbuf, char *buf, unsigned long len){
 
 	(*sbuf)->cur++;
 
-	printk("stack buf insert cur = %ld\n", (*sbuf)->cur);
 	return 0;
 }
 
@@ -99,7 +97,6 @@ int restore_stack_buf(sbuf_t *sbuf){
                         h = list_entry(pos, hole_t, list);
 			
 			len = (unsigned long)(h->start - from);
-			printk("h->start = %p, from = %p, len = %ld\n", h->start, from, len);
 			if(len != 0){
 				memcpy(to, from, len);
 			}
@@ -122,6 +119,5 @@ void print_stack_buf(sbuf_t *sbuf){
 	
 	for(i = 0; i < sbuf->cur; i++){
 		tmp = sbuf + i;
-		printk("start = %p, len = %p\n", (char *)tmp->start, (char *)tmp->len);
 	}
 }
