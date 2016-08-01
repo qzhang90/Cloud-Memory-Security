@@ -7,5 +7,5 @@ all:
 clean:
 	#make CFLAGS+="-O3" -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
-	rm -f *.mod.c modules.order Module.symvers
+	rm -f *.mod.c modules.order Module.symvers *.ko
 
