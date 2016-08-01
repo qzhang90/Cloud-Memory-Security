@@ -1,4 +1,5 @@
 #include <linux/slab.h>
+#include <linux/list_sort.h>
 #include "stack_buf.h"
 
 
@@ -45,6 +46,7 @@ int copy_stack_buf(sbuf_t **sbuf, char *buf, unsigned long len){
 			kfree(t1->buf);
 			t2->start = t1->start;
 			t2->len = t1->len;
+			t2->hole_list = t1->hole_list;
 		}
 
 		kfree(*sbuf);
@@ -54,10 +56,12 @@ int copy_stack_buf(sbuf_t **sbuf, char *buf, unsigned long len){
 	//Insert the new item
 	tmp_sbuf = *sbuf + cur;
 	tmp_sbuf->buf = kmalloc(len, GFP_KERNEL);
+	printk("allocated sbuf->buf = %p\n", tmp_sbuf->buf);
 	memcpy(tmp_sbuf->buf, buf, len);
 
 	tmp_sbuf->start = buf;
 	tmp_sbuf->len =len;
+	INIT_LIST_HEAD(&tmp_sbuf->hole_list);
 
 	(*sbuf)->cur++;
 
@@ -65,14 +69,46 @@ int copy_stack_buf(sbuf_t **sbuf, char *buf, unsigned long len){
 	return 0;
 }
 
+static int cmp(void *priv, struct list_head *a, struct list_head *b){
+	hole_t *ha, *hb;
+	
+	ha = container_of(a, hole_t, list);
+	hb = container_of(b, hole_t, list);
+	
+	return (int)(ha->start - hb->start);
+}
+
 int restore_stack_buf(sbuf_t *sbuf){
 	int i;
 	sbuf_t *tmp;
-	unsigned long cur = sbuf->cur;
+	unsigned long cur = sbuf->cur, len;
+	struct list_head *pos;
+	hole_t *h;
+	char *from, *to;
 
 	for(i = 0; i < cur; i++){
 		tmp = sbuf + i;
-		memcpy((char *)tmp->start, tmp->buf, tmp->len);
+		
+		from = tmp->buf;
+		to = (char *)tmp->start;
+
+		list_sort(NULL, &tmp->hole_list, cmp);
+
+		list_for_each(pos, &tmp->hole_list){
+                        h = list_entry(pos, hole_t, list);
+			
+			len = (unsigned long)(h->start - from);
+			printk("h->start = %p, from = %p, len = %ld\n", h->start, from, len);
+			if(len != 0){
+				memcpy(to, from, len);
+			}
+			from = h->start + h->len;
+			to += len + h->len;
+                }
+
+		len = (unsigned long)(tmp->buf + tmp->len - from);
+		memcpy(to, from, len);
+		
 		sbuf->cur--;
 	}
 

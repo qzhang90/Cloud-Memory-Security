@@ -88,8 +88,8 @@ int restore_pointers(para_list_t *plt, sbuf_t *sbuf){
 	int i;
 	para_t *tmp;
 	unsigned long size;
-	char *from;
 	unsigned long org_value, addr_in_stack, addr_in_buf;
+	hole_t *h;
 
 	for(i = 0; i < plt->size; i++){
 		tmp = plt->plist + i;
@@ -106,6 +106,10 @@ int restore_pointers(para_list_t *plt, sbuf_t *sbuf){
 			org_value = *(unsigned long *)addr_in_buf;
 			*(unsigned long *)addr_in_stack = org_value;
 
+			h = kmalloc(sizeof(hole_t), GFP_KERNEL);
+			h->start = (char *)addr_in_buf;
+			h->len = sizeof(void *);
+			list_add_tail(&h->list, &sbuf->hole_list);
 
 			addr_in_stack = *(unsigned long *)addr_in_stack;
 
@@ -114,15 +118,25 @@ int restore_pointers(para_list_t *plt, sbuf_t *sbuf){
 				
 				org_value = *(unsigned long *)addr_in_buf;
 				*(unsigned long *)addr_in_stack = org_value;
+			
+				h = kmalloc(sizeof(hole_t), GFP_KERNEL);
+				h->start = (char *)addr_in_buf;
+				h->len = sizeof(void *);
+				list_add_tail(&h->list, &sbuf->hole_list);
 				
 				tmp->pointer--;
 				addr_in_stack = *(unsigned long *)addr_in_stack;
 			}
 
-			from = find_in_stack_buf((char *)addr_in_stack, size, sbuf);
-			printk("restore_pointers, hi I am here, p = %p, from = %p\n", p, from);	
-			if(from){
-				memcpy((char *)addr_in_stack, (char *)from, size);
+			addr_in_buf = find_in_stack_buf((char *)addr_in_stack, size, sbuf);
+			
+			if(addr_in_buf){
+				memcpy((char *)addr_in_stack, (char *)addr_in_buf, size);
+				
+				h = kmalloc(sizeof(hole_t), GFP_KERNEL);
+				h->start = (char *)addr_in_buf;
+				h->len = size;
+				list_add_tail(&h->list, &sbuf->hole_list);
 			}else{
 				printk(KERN_ERR "Cannot find %p in stack bufs\n", p);
 			}
@@ -238,7 +252,7 @@ long jsys_encrypt_stack(void *arg){
 	*/
 	if(init == 0){
 		mapper = init_mapper(8);
-		stack_buf = init_stack_buf(8);
+		stack_buf = init_stack_buf(32);
 		parse("/home/test/fopen", &mapper);
 		
 		init = 1;
