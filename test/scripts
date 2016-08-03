@@ -1,0 +1,3 @@
+gcc -g fopen.c -o fopen
+objdump -S -d fopen
+readelf -s fopen
