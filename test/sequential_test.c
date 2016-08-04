@@ -18,7 +18,7 @@ __cyg_profile_func_exit(void *this_func, void *call_site)
 	unsigned long long pre_rbp, i;
 
 	pre_rbp = *(unsigned long long *)rbp;
-	for(i = rbp + 16; i < pre_rbp - 16; i++){
+	for(i = rbp + 64; i < pre_rbp - 64; i++){
 		*((char *)i) = '0';
 	}
 	
