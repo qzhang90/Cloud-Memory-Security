@@ -45,9 +45,7 @@ pid_t pid = -1;
 struct page *p = NULL;
 item_t *mapper;
 
-static int sbuf_stack_top = 0;
-sbuf_t *sbuf_stack[16]; /*each element of the stack pointing to a list of stack_bufs, each stack_buf relates to a function*/
-
+sbuf_t *stack_buf;
 static int init = 0;
 
 
@@ -246,7 +244,6 @@ long jsys_encrypt_stack(void *arg){
 	unsigned long user_rsp, prev_user_rsp;
 	para_list_t *para_list = (para_list_t *)arg;
 	const struct pt_regs *regs = task_pt_regs(current);
-	sbuf_t *stack_buf;
 
 	user_rsp = (const void __user *)regs->sp + 0x750;
 
@@ -265,10 +262,7 @@ long jsys_encrypt_stack(void *arg){
 
 	if(init == 0){
 		mapper = init_mapper(8);
-
-		for(i = 0; i < 16; i++){
-			 sbuf_stack[i] = init_stack_buf(32);
-		}
+		stack_buf = init_stack_buf(32);
 		parse("/home/test/ftest", &mapper);
 		
 		init = 1;
@@ -324,8 +318,6 @@ long jsys_encrypt_stack(void *arg){
 
 	prev_rsp = user_rsp;
 
-	stack_buf = sbuf_stack[sbuf_stack_top++];
-
 	for(i = user_rsp; i <= user_rbp;){
 		skip = contains(i, para_list);
 
@@ -366,7 +358,6 @@ long jsys_decrypt_stack(void *arg){
 	unsigned long user_ip = *((unsigned long *)kernel_rbp + 12);	
 	unsigned long user_rsp, user_rbp;
 	cs_item_t *csit, *prev_csit;
-	sbuf_t *stack_buf;
 	
 	func_name = get_func_name(mapper, user_ip); 
 	/*check*/
@@ -405,7 +396,6 @@ long jsys_decrypt_stack(void *arg){
                         i++;
                 }
 		*/
-		stack_buf = sbuf_stack[--sbuf_stack_top];
 		restore_stack_buf(stack_buf);
 	//	i++;
 	

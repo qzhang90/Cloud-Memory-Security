@@ -97,6 +97,7 @@ int restore_stack_buf(sbuf_t *sbuf){
                         h = list_entry(pos, hole_t, list);
 			
 			len = (unsigned long)(h->start - from);
+			printk("haha1 to = %p, from = %p, len =%ld\n", to, from, len);
 			if(len != 0){
 				memcpy(to, from, len);
 			}
@@ -105,6 +106,7 @@ int restore_stack_buf(sbuf_t *sbuf){
                 }
 
 		len = (unsigned long)(tmp->buf + tmp->len - from);
+		printk("haha2 to = %p, from = %p, len =%ld\n", to, from, len);
 		memcpy(to, from, len);
 		
 		sbuf->cur--;
