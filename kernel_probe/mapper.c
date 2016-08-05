@@ -68,7 +68,7 @@ int insert_mapper(item_t **mapper, char *func_name, unsigned long ip, unsigned l
 
 	(*mapper)->cur++;
 
-	printk("insert cur = %ld\n", (*mapper)->cur);
+	//printk("insert cur = %ld\n", (*mapper)->cur);
 	return 0;
 }
 
@@ -92,7 +92,7 @@ char *get_func_name(item_t *mapper, unsigned long ip){
 	for(i = 0; i < mapper->cur; i++){
 		tmp = mapper + i;
 		
-		printk("get_func_name: %-30s, %-30ld, %-30ld\n", tmp->func_name, tmp->ip, tmp->size);
+		//printk("get_func_name: %-30s, %-30ld, %-30ld\n", tmp->func_name, tmp->ip, tmp->size);
 		if((ip >= tmp->ip) && (ip < (tmp->ip + tmp->size))){
 			return tmp->func_name;
 		}

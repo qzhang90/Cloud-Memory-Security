@@ -11,6 +11,7 @@
 #include <asm/user_64.h>
 #include <asm/compat.h>
 #include <linux/percpu.h>
+#include <asm/processor.h>
 
 #include "parse_elf.h"
 #include "mapper.h"
@@ -106,6 +107,12 @@ int restore_pointers(para_list_t *plt, sbuf_t *sbuf){
 			tmp->pointer--;
 
 			addr_in_buf = (unsigned long)find_in_stack_buf((char *)addr_in_stack, sizeof(void *), sbuf);
+			
+			if(!addr_in_buf){
+				printk(KERN_ERR "ERROR: add_in_buf is NULL");
+				return -1;
+			}
+
 			org_value = *(unsigned long *)addr_in_buf;
 			*(unsigned long *)addr_in_stack = org_value;
 
@@ -248,8 +255,8 @@ long jsys_encrypt_stack(void *arg){
 	const struct pt_regs *regs = task_pt_regs(current);
 	sbuf_t *stack_buf;
 
-	user_rsp = (const void __user *)regs->sp + 0x750;
-
+	user_rsp = (unsigned long)((const void __user *)regs->sp + 0x750);
+	
 	/*
 	for(i = 0; i < 0x750; i++){
 		printk("%02x ", *((char *)user_rsp - i)&0XFF);
@@ -279,7 +286,7 @@ long jsys_encrypt_stack(void *arg){
 		printk("%s: NULL func_name error\n", __func__);
 		return 0;
 	}else{
-		printk("user_rsp = %lx, user_ip = %ld, func_name = %s\n\n", user_rsp, user_ip, func_name);
+		//printk("user_rsp = %lx, user_ip = %ld, func_name = %s\n\n", user_rsp, user_ip, func_name);
 	}
 
 	/*check*/
@@ -294,13 +301,14 @@ long jsys_encrypt_stack(void *arg){
 	/*check*/
 	if(call_stack_top > 0){
 		prev_csit = call_stack[call_stack_top - 1];
+		printk("get prev_csit from call stack # %d\n", call_stack_top - 1);
 		prev_user_rbp = prev_csit->user_rbp;
 		prev_user_rsp = prev_csit->user_rsp;
 	
 		if(user_rbp >= prev_user_rsp){
 			printk(KERN_ERR "ERROR: Illegal stack encrypt from function %s: trying the encrypt caller's stack\n", func_name);
 			printk(KERN_ERR "ERROR: user_rbp = %p, prev_user_rsp = %p\n", (char *)user_rbp, (char *)prev_user_rsp);
-			return -1;
+			//return -1;
 		}
 	}
 	
@@ -317,6 +325,7 @@ long jsys_encrypt_stack(void *arg){
 	csit->user_rsp = user_rsp;
 
 	call_stack[call_stack_top] = csit;	
+	printk("Insert csit into call stack # %d, uesr_rsp = %p\n", call_stack_top, (char *)csit->user_rsp);
 	call_stack_top++;
 
 	//encrypt(user_rsp, user_rbp);
@@ -350,11 +359,11 @@ long jsys_encrypt_stack(void *arg){
 		}
 	}
 
-	printk("before restore_pointers\n");	
+	//printk("before restore_pointers\n");	
 	restore_pointers(para_list, stack_buf);
-	printk("after restore_pointers\n");	
+	//printk("after restore_pointers\n");	
 
-	print_stack_buf(stack_buf);
+	//print_stack_buf(stack_buf);
 	printk("encrypt from %lx to %lx\n", user_rsp, user_rbp);
 	jprobe_return();
 	return 0;
@@ -413,7 +422,6 @@ long jsys_decrypt_stack(void *arg){
 	jprobe_return();
 	return 0;
 }
-
 static struct jprobe jvfs_write_probe = {
 	.entry			= jvfs_write,
 	.kp = {
@@ -450,7 +458,6 @@ static struct jprobe jsys_decrypt_stack_probe = {
 		.symbol_name	= "sys_decrypt_stack",
 	},
 };
-
 static int __init jprobe_init(void)
 {
 	int ret;
