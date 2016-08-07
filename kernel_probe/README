@@ -1,0 +1,10 @@
+1 Set the value of "char *path_to_exe" to the executable file
+2 make
+3 insmod memClear.ko
+4 Compile the examples in the "test" directory and run the examples
+
+Compile an example: gcc example.c -o example
+If the clear stack function is required, then compile with "gcc -finstrument-functions example.c -o example"
+
+Run an example: ./example
+

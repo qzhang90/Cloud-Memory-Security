@@ -18,6 +18,8 @@
 #include "stack_buf.h"
 #include <linux/memclear_para.h>
 
+char *path_to_exe = "/home/test/ftest";
+
 //This data structure is copied from arch/x86/kernel/ptrace.c
 enum x86_regset {
 	REGSET_GENERAL,
@@ -276,7 +278,7 @@ long jsys_encrypt_stack(void *arg){
 		for(i = 0; i < 16; i++){
 			 sbuf_stack[i] = init_stack_buf(32);
 		}
-		parse("/home/test/ftest", &mapper);
+		parse(path_to_exe, &mapper);
 		
 		init = 1;
 	}
