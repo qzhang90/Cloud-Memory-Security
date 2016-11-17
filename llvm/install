@@ -1,0 +1,8 @@
+$ mkdir mybuilddir
+$ cd mybuilddir
+$ cmake path/to/llvm/source/root
+$ cmake --build .
+$ cmake --build . --target install
+
+It is possible to set a different install prefix at installation time by invoking the cmake_install.cmake script generated in the build directory:
+$ cmake -DCMAKE_INSTALL_PREFIX=/tmp/llvm -P cmake_install.cmake
